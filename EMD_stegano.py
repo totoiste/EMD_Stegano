@@ -17,7 +17,7 @@ Xinpeng Zhang and Shuozhong Wang
 https://staff.emu.edu.tr/alexanderchefranov/Documents/CMSE492/ZhangIEEECL2006.pdf
 https://www.researchgate.net/publication/3417888_Efficient_Steganographic_Embedding_by_Exploiting_Modification_Direction
 
-Manage only grayscale image, if not convert !
+Manage only grayscale image, if not convert it!
 """
 
 """
@@ -97,10 +97,35 @@ class DATA:
         else:
             self.bytes = data
 
-        self.bits = []
-        for byte in self.bytes:
-            bits = [int(b) for b in bin(byte)[2:].zfill(8)]
-            self.bits.extend(bits)
+        self.bits = self.bytes_to_bits(self.bytes)
+
+    def bytes_to_bits(self, byte_values) -> list:
+        bit_list = []
+        for char in byte_values:
+            bit_list.extend([int(b) for b in bin(char)[2:].zfill(8)])
+        return bit_list
+
+    def bits_to_bytes(self, bit_list) -> bytes:
+        num_bytes = len(bit_list) // 8
+        byte_values = []
+        for i in range(num_bytes):
+            byte_bits = bit_list[i*BYTE_LENGTH : (i+1)*BYTE_LENGTH]
+            binary_string = "".join(str(b) for b in byte_bits)
+            decimal_value = int(binary_string, 2)
+            byte_values.append(decimal_value)
+        return bytes(byte_values)
+
+    def find_printable_substring(self, length, tolerance = 0.90) -> list: 
+        for b in range(BYTE_LENGTH):
+            raw_bytes = self.bits_to_bytes(self.bits[b:])
+            for i in range(len(raw_bytes) - length + 1):
+                substring_bytes = raw_bytes[i:i + length]
+                decoded_substring = substring_bytes.decode('utf-8', errors='ignore')
+                printable_count = sum(1 for char in decoded_substring if char.isprintable())
+                #print(f"{len(self.bytes) = } {i = } {decoded_substring = } and {printable_count = }")
+                if (printable_count / length) >= tolerance:
+                    return (substring_bytes,i,b)
+        return None
 
     def __str__(self) -> str:
         return f"{self.bytes}"
@@ -128,9 +153,7 @@ class EMD:
         self.base = 2 * n + 1
         self.bits_per_digit = math.floor(math.log2(self.base))
         if options.debug:
-            print(f"\x1b[1m[\x1b[93m+\x1b[0m\x1b[1m]\x1b[0m n = {self.n}")
-            print(f"\x1b[1m[\x1b[93m+\x1b[0m\x1b[1m]\x1b[0m base (2n+1) = {self.base}")
-            print(f"\x1b[1m[\x1b[93m+\x1b[0m\x1b[1m]\x1b[0m bits per digit = {self.bits_per_digit}")
+            print(f"\x1b[1m[\x1b[93m+\x1b[0m\x1b[1m]\x1b[0m n = {self.n}, base (2n+1) = {self.base}, bits per digit = {self.bits_per_digit}\x1b[0m")
 
     # Calulation of f as a weighted sum modulo (2n + 1) 
     # f(g1, g2,...,gn) = SUM[(gi*i)] mod (2n + 1) for i = 1..n
@@ -271,6 +294,10 @@ def parseArgs() -> dict:
     parser_i = subparsers.add_parser('info', description='Description of *info* subcommand', help='Return info about image capacity')
     parser_i.add_argument("-in", "--input-image", required=True, help="Input image file")
 
+    parser_s = subparsers.add_parser('search', description='Description of *search* subcommand', help='search text hidden into image')
+    parser_s.add_argument("-l", "--length", type=int, required=True, help="Length of bytes to extract")
+    parser_s.add_argument("-in", "--input-image", required=True, help="Input image file")
+
     if len(sys.argv) == 1:
         parser.print_help()
         sys.exit(1)
@@ -281,7 +308,7 @@ def header() -> None:
     print(r"""  ______ __  __ _____     _____ _                               
  |  ____|  \/  |  __ \   / ____| |                              
  | |__  | \  / | |  | | | (___ | |_ ___  __ _  __ _ _ __   ___  
- |  __| | |\/| | |  | |  \___ \| __/ _ \/ _` |/ _` | '_ \ / _ \           v1.0
+ |  __| | |\/| | |  | |  \___ \| __/ _ \/ _` |/ _` | '_ \ / _ \           v1.1
  | |____| |  | | |__| |  ____) | ||  __/ (_| | (_| | | | | (_) |
  |______|_|  |_|_____/  |_____/ \__\___|\__, |\__,_|_| |_|\___/           @totoiste
                                          __/ |                  
@@ -303,8 +330,6 @@ if __name__ == '__main__':
                 nb_pixels = Img.get_nb_pixels()
                 if Img.mode != 'L':
                     print(f"\x1b[1;93m⚠\x1b[0m \x1b[96mImage not in grayscale -> will be converted\x1b[0m")
-                else:
-                    print(f"{Img.mode = }")
                 print(f"\x1b[1;92m✅\x1b[0m \x1b[96mYou can hide a total of {nb_pixels // BYTE_LENGTH} // n bytes with n > 2 in {options.input_image}\x1b[0m")
 
             case 'hide':
@@ -331,7 +356,7 @@ if __name__ == '__main__':
                 print(f"\x1b[1;92m✅\x1b[0m \x1b[96mMessage hidden in {output_image_path} \x1b[0m")
                 
             case 'extract':
-                Steg  = EMD(options.dimension)
+                Steg = EMD(options.dimension)
                 Img_steg = IMAGE(options.input_image)
                 Secret = Steg.extract(Img_steg, options.length)
                 
@@ -341,9 +366,24 @@ if __name__ == '__main__':
                     file.close()
                     print(f"\x1b[1;92m✅\x1b[0m \x1b[96mFile {options.output_file} has been saved !\x1b[0m")
                 else:
-                    print(f"\x1b[1;92m✅\x1b[0m \x1b[96mEMD Data = {Secret}\x1b[0m")
-                
+                    print(f"\x1b[1;92m✅\x1b[0m \x1b[96mEMD Data = {Secret.bytes}\x1b[0m")
+
+            case 'search':
+                Img_steg = IMAGE(options.input_image)
+                #n_max = Img_steg.width - 1 #Should be different...
+                n_max = 20
+                for n in range(2,n_max):
+                    nb_bytes_max = (Img_steg.get_nb_pixels() // BYTE_LENGTH // n)
+                    if options.debug:
+                        print(f"\x1b[1m[\x1b[93m+\x1b[0m\x1b[1m]\x1b[0m Searching text with {n = }/{n_max}\x1b[0m")
+                    Steg = EMD(n)
+                    bytes_candidate = Steg.extract(Img_steg, nb_bytes_max)
+                    result = bytes_candidate.find_printable_substring(options.length)
+                    if result is not None:
+                        (bytes_printable, offset, bit_shift) = result
+                        print(f"\x1b[1;92m✅\x1b[0m \x1b[96mFound = {bytes_printable} with {n = }, {offset = }, {bit_shift = }\x1b[0m")
+
             case _:
                 parser.print_help()
     except Exception as e:
-        print(f"\x1b[1;91m❌\x1b[0m \x1b[96mError : {e}\x1b[0m")
+        print(f"\x1b[1;91m❌\x1b[0m \x1b[96m{type(e)} : {e}\x1b[0m")
