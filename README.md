@@ -1,13 +1,9 @@
 # EMD_Stegano
-<p align="center">
+<p align="left">
     A python script to manage images steganography Embedding by Exploiting Modification Direction.
-    This is an implementation of "Efficient Steganographic Embedding by Exploiting Modification Direction"
-    <a href="https://staff.emu.edu.tr/alexanderchefranov/Documents/CMSE492/ZhangIEEECL2006.pdf">IEEE COMMUNICATIONS LETTERS, VOL. 10, NO. 11, NOVEMBER 2006</a>
+    This is an implementation of "Efficient Steganographic Embedding by Exploiting Modification Direction"<br>
+    <a href="https://staff.emu.edu.tr/alexanderchefranov/Documents/CMSE492/ZhangIEEECL2006.pdf">IEEE COMMUNICATIONS LETTERS, VOL. 10, NO. 11, NOVEMBER 2006</a><br>
     Xinpeng Zhang and Shuozhong Wang
-    
-    <br>
-    <img alt="GitHub release (latest by date)" src="https://img.shields.io/github/v/release/totoiste/EMD_Stegano">
-    <br>
 </p>
 
 ## Features
