@@ -14,7 +14,7 @@
  - [x] Search for information that may have been hidden by this process 
  - [x] Save output in a file or in a specified image
  - [x] Supports all PIL images types
- - [x]  Manage only grayscale image, if not convert !
+ - [x] Manage only grayscale image, if not convert !
 
 ## Usage
 
@@ -30,7 +30,7 @@ $ python3 EMD_stegano.py -h
                                         |___/
   -----Efficient Steganographic Embedding by Exploiting Modification Direction-----
 
-usage: EMD_stegano.py [-h] [-v] {hide,extract,info,search} ...
+usage: EMD_stegano.py [-h] [-v] [-vv] {hide,extract,info,search} ...
 
 The EMD_Stegano script allows you to hide DATA in an image or read hidden DATA from an image with a Steganographic process called EMD (Exploiting Modification Direction)
 
@@ -45,6 +45,7 @@ positional arguments:
 options:
   -h, --help            show this help message and exit
   -v, --debug           Debug mode.
+  -vv, --verbose        Very Verbose mode.
 ```
 
 ## Demonstration
