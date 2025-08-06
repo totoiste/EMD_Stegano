@@ -31,7 +31,7 @@ Class IMAGE
         digits are numbers in (2n+1)-ary notational system defined in EMD class 
         digits are calculated in EMD by f function
     - digit_index is the index in digits which are the conversion of DATA to be hidden in numbers
-        As a digit is coded in n pixels, th n-th digit position could be calculated -> get_coord_xy()
+        As a digit is coded in n pixels, the n-th digit position could be calculated -> get_coord_xy()
     - stego_group is a group of n pixels hiding one bit of DATA
 
 """
@@ -64,7 +64,8 @@ class IMAGE:
     def get_stego_group(self, digit_index, n) -> list:
         x, y = self.get_coord_xy(digit_index, n)
         p = [self.pixels[x + i, y] for i in range(n)]
-        #print(f"get_stego_group of {digit_index = } : {x = }, {y = }, {p = }")
+        if options.verbose:
+            print(f"\x1b[1m[\x1b[93m++\x1b[0m\x1b[1m]\x1b[0m get_stego_group of {digit_index = } : {x = }, {y = }, {p = }\x1b[0m")
         return p
 
     def set_stego_group(self, stego_group, digit_index, n):
@@ -102,11 +103,11 @@ class DATA:
     def bytes_to_bits(self, byte_values) -> list:
         bit_list = []
         for char in byte_values:
-            bit_list.extend([int(b) for b in bin(char)[2:].zfill(8)])
+            bit_list.extend([int(b) for b in bin(char)[2:].zfill(BYTE_LENGTH)])
         return bit_list
 
     def bits_to_bytes(self, bit_list) -> bytes:
-        num_bytes = len(bit_list) // 8
+        num_bytes = len(bit_list) // BYTE_LENGTH
         byte_values = []
         for i in range(num_bytes):
             byte_bits = bit_list[i*BYTE_LENGTH : (i+1)*BYTE_LENGTH]
@@ -262,10 +263,11 @@ class EMD:
     def extract(self, Img, data_length) -> bytes:
         digits = self.get_digits(Img, data_length)
 
-        #print(f"Last 30 numbers {self.base}-ary extracted : {digits[-30:]}")
         bits = self.convert_digits2bits(digits, data_length)
-        #print(f"Extracted Message in {len(bits)} bits")
-        #print(f"Last bits of Secret = {bits[-16:]}")
+        if options.verbose:
+            print(f"\x1b[1m[\x1b[93m++\x1b[0m\x1b[1m]\x1b[0m numbers {self.base}-ary extracted : {digits}\x1b[0m")
+            print(f"\x1b[1m[\x1b[93m++\x1b[0m\x1b[1m]\x1b[0m Extracted Message in {len(bits)} bits\x1b[0m")
+            print(f"\x1b[1m[\x1b[93m++\x1b[0m\x1b[1m]\x1b[0m bits of Secret = {bits}\x1b[0m")
         Secret = DATA(bits)
         if options.debug:
             print(f"\x1b[1m[\x1b[93m+\x1b[0m\x1b[1m]\x1b[0m Extracted {Secret.length // BYTE_LENGTH} bytes from image\x1b[0m")
@@ -274,6 +276,7 @@ class EMD:
 def parseArgs() -> dict:
     parser = argparse.ArgumentParser(add_help=True, description="The EMD_Stegano script allows you to hide DATA in an image or read hidden DATA from an image with a Steganographic process called EMD (Exploiting Modification Direction)")
     parser.add_argument("-v", "--debug", action="store_true", default=False, help="Debug mode.")
+    parser.add_argument("-vv", "--verbose", action="store_true", default=False, help="Very Verbose mode.")
     
     subparsers = parser.add_subparsers(dest='action', help='choose an action')
  
