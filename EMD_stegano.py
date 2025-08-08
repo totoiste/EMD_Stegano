@@ -96,6 +96,7 @@ class DIGIT:
     
     def convert_to_bits(self):
         return bin(self.value)[2:].zfill(int(self.bits_per_digit))
+
 """
 Class STEGO_GROUP
 -----------
@@ -395,7 +396,8 @@ if __name__ == '__main__':
                 if options.input_data_text:
                     Data = SECRET(options.input_data_text)
                 elif options.input_data_file:
-                    Data = SECRET(options.input_data_file)
+                    with open(options.input_data_file, 'rb') as f:
+                        Data = SECRET(f.read())
                 
                 Img_steg = Steg.hide(Data, Img)
                 
