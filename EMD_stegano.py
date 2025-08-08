@@ -3,7 +3,7 @@
 # File name          : EMD_Stegano.py
 # Author             : totoiste (@T0to1st3)
 # Date created       : 13/07/2025
-# V1.2
+# V2.0
 
 from PIL import Image
 import argparse
@@ -31,13 +31,13 @@ Class IMAGE
     - get_coord_xy is a function which returns coordinates x,y for a digit defined.
         digits are numbers in (2n+1)-ary notational system defined in EMD class 
         digits are calculated in EMD by f function
-    - digit_index is the index in digits which are the conversion of DATA to be hidden in numbers
+    - digit_index is the index in digits which are the conversion of SECRET to be hidden in numbers
         As a digit is coded in n pixels, the n-th digit position could be calculated -> get_coord_xy()
-    - stego_group is a group of n pixels hiding one bit of DATA
+    - stego_group is a group of n pixels hiding one bit of SECRET
 
 """
 class IMAGE:
-    def __init__(self, image_path) -> None:
+    def __init__(self, image_path: str) -> None:
         try:
             img = Image.open(image_path)
         except Exception:
@@ -47,41 +47,100 @@ class IMAGE:
         self.pixels = img.load()
         self.width, self.height = img.size
 
+    # Extract and calculate digits from IMAGE 
+    def get_digits(self, n: int, length: int) -> list:
+        base = 2 * n + 1
+        bits_per_digit = math.floor(math.log2(base))
+
+        digits = []
+        nb_digits = math.ceil(length * BYTE_LENGTH / bits_per_digit)
+        for index in range(nb_digits):
+            Sg = STEGO_GROUP(self,index,n)
+            digits.append(Sg.get_digit())
+            if options.verbose:
+                print(f"\x1b[1m[\x1b[93m++\x1b[0m\x1b[1m]\x1b[0m For Stego group {index} : p = {Sg.pixels} and f(p) = {Sg.get_digit().value} \x1b[0m")
+        if options.debug or options.verbose:
+            print(f"\x1b[1m[\x1b[93m+\x1b[0m\x1b[1m]\x1b[0m Get {len(Sg.pixels)} digits from image\x1b[0m")
+        return digits
+
     def convert_grayscale(self) -> None:
         self.img = self.img.convert("L")
         
     def get_nb_pixels(self) -> int:
         return self.width*self.height
 
-    def save(self, image_output_path) -> None:
+    def set_pixel(self, x: int, y: int, value: int) -> None:
+        self.pixels[x, y] = value
+
+    def save(self, image_output_path: str) -> None:
         self.img.save(image_output_path)
 
-    def get_coord_xy(self, digit_index, n) -> list:
-        digits_by_line = self.width // n
-        y = digit_index // digits_by_line 
-        x = (digit_index % digits_by_line) * n
+    def get_xy(self, index: int, n: int) -> list:
+        line = self.width // n
+        y = index // line 
+        x = (index % line) * n
         return x, y
 
-    def get_stego_group(self, digit_index, n) -> list:
-        x, y = self.get_coord_xy(digit_index, n)
-        p = [self.pixels[x + i, y] for i in range(n)]
-        return p
-
-    def set_stego_group(self, stego_group, digit_index, n):
-        x, y = self.get_coord_xy(digit_index, n)
-        for i in range(n):
-            self.pixels[x + i, y] = stego_group[i]
-        #print(f"set_stego_group of {digit_index = } : {x = }, {y = }, {stego_group = }")
-        #return self
+"""
+Class DIGIT
+-----------
+    - Dgit is a number in base (2n + 1)
+    - One digit contains bits_per_digit (= math.floor(math.log2(base))) bits
+"""
+class DIGIT:
+    def __init__(self, n: int, value: int) -> None:
+        self.n = n
+        self.base = 2 * n + 1
+        self.bits_per_digit = math.floor(math.log2(self.base))
+        self.value = value
+    
+    def convert_to_bits(self):
+        return bin(self.value)[2:].zfill(int(self.bits_per_digit))
+"""
+Class STEGO_GROUP
+-----------
+    - stego_group is a group of n pixels of IMAGE hiding one digit of SECRET
+    - one digit is a number in base (2n + 1)
+    - one digit contains bits_per_digit (= math.floor(math.log2(base))) bits
 
 """
-Class DATA
+class STEGO_GROUP:
+    def __init__(self, image: IMAGE, index: int, size: int) -> None:
+        self.index = index
+        self.image = image
+        self.n = size
+        self.base = 2 * self.n + 1
+        self.x, self.y = self.image.get_xy(self.index, self.n)
+        self.pixels = self.get_pixels()
+
+    def get_pixels(self) -> list:
+        p = [self.image.pixels[self.x + i, self.y] for i in range(self.n)]
+        return p
+
+    def set_pixels(self, new_values: list) -> None:
+        try:
+            for i in range(self.n):
+                self.image.set_pixel(self.x + i, self.y, new_values[i])
+        except Exception as e:
+            print(f"\x1b[1;91m❌\x1b[0m \x1b[96mChange pixel values error -> {type(e)} : {e}\x1b[0m")
+
+    # Calulation of f as a weighted sum modulo (2n + 1) 
+    # f(g1, g2,...,gn) = SUM[(gi*i)] mod (2n + 1) for i = 1..n
+    def get_digit(self) -> DIGIT:
+        weighted_sum = 0
+        for i in range(self.n):
+            weighted_sum += (i + 1) * self.pixels[i]
+        Digit = DIGIT(self.n, weighted_sum % self.base)
+        return Digit
+
+"""
+Class SECRET
 -----------
-    - This class is usefull to manage DATA to hide in IMAGE or to manage SECRET
+    - This class is usefull to manage SECRET to hide in IMAGE or to manage SECRET
       extracted from IMAGE
     - data can be a string, byte or array of bits
 """
-class DATA:
+class SECRET:
     def __init__(self, data) -> None:
         self.length = len(data)
 
@@ -97,15 +156,15 @@ class DATA:
         else:
             self.bytes = data
 
-        self.bits = self.bytes_to_bits(self.bytes)
+        self.bits = self.bytes_to_bits()
 
-    def bytes_to_bits(self, byte_values) -> list:
+    def bytes_to_bits(self) -> list:
         bit_list = []
-        for char in byte_values:
+        for char in self.bytes:
             bit_list.extend([int(b) for b in bin(char)[2:].zfill(BYTE_LENGTH)])
         return bit_list
 
-    def bits_to_bytes(self, bit_list) -> bytes:
+    def bits_to_bytes(self, bit_list: list) -> bytes:
         num_bytes = len(bit_list) // BYTE_LENGTH
         byte_values = []
         for i in range(num_bytes):
@@ -115,7 +174,29 @@ class DATA:
             byte_values.append(decimal_value)
         return bytes(byte_values)
 
-    def find_printable_substring(self, length, tolerance = 0.90) -> list: 
+    #Convert bits to digits in a (2n + 1)-ary notational system
+    def get_digits(self, n: int) -> list:
+        base = 2 * n + 1
+        bits_per_digit = math.floor(math.log2(base))
+
+        digits = []
+        for i in range(0, len(self.bits), bits_per_digit):
+            group = self.bits[i : i + bits_per_digit]
+
+            # Manage the case : Secret bits number is not exactly the number of digits * bits_per_digit
+            if len(group) < bits_per_digit:
+                group.extend([0] * (bits_per_digit - len(group)))
+
+            value = int(''.join(map(str, group)),2) 
+            if options.verbose:
+                print(f"\x1b[1m[\x1b[93m++\x1b[0m\x1b[1m]\x1b[0m For group of bits {group} in Secret bitstream, digit is {value}\x1b[0m")
+            Digit = DIGIT(n, value)
+            digits.append(Digit)
+        if options.debug or options.verbose:
+            print(f"\x1b[1m[\x1b[93m+\x1b[0m\x1b[1m]\x1b[0m Convert {len(digits)} digits from Secret bitstream of length {len(self.bits)}\x1b[0m")
+        return digits
+
+    def find_printable_substring(self, length: int, tolerance = 0.90) -> list: 
         for b in range(BYTE_LENGTH):
             raw_bytes = self.bits_to_bytes(self.bits[b:])
             for i in range(len(raw_bytes) - length + 1):
@@ -148,148 +229,102 @@ Class EMD
     - A stego group is a group of n pixels including some digits
 """
 class EMD:
-    def __init__(self, n) -> None:
+    def __init__(self, n: int) -> None:
         self.n = n
         self.base = 2 * n + 1
         self.bits_per_digit = math.floor(math.log2(self.base))
         if options.debug or options.verbose:
             print(f"\x1b[1m[\x1b[93m+\x1b[0m\x1b[1m]\x1b[0m n = {self.n}, base (2n+1) = {self.base}, bits per digit = {self.bits_per_digit}\x1b[0m")
 
-    # Calulation of f as a weighted sum modulo (2n + 1) 
-    # f(g1, g2,...,gn) = SUM[(gi*i)] mod (2n + 1) for i = 1..n
-    def f(self, pixel_values) -> int:
-        weighted_sum = 0
-        for i in range(self.n):
-            weighted_sum += (i + 1) * pixel_values[i]
-        return weighted_sum % self.base
-
-    #Convert digits in a (2n + 1)-ary notational system to bits
-    def convert_digits2bits(self, digits, data_length) -> list:
-        bits = []
-        for digit in digits:
-            binary = bin(digit)[2:].zfill(int(self.bits_per_digit))
-            bits.extend([int(b) for b in binary])
-        #Keep the exact quantity of bits...
-        bits = bits[:data_length * BYTE_LENGTH]
-        if options.debug or options.verbose:
-            print(f"\x1b[1m[\x1b[93m+\x1b[0m\x1b[1m]\x1b[0m Convert {len(bits)} bits from {len(digits)} digits\x1b[0m")
-        return bits
 
     #Modify the correct pixel by incrementing or decrementing of 1 
     #Manage the cases of pixel values = 0 or 255
-    def embed(self, digit_index, secret_digit, stego_group) -> list:
-        current_digit = self.f(stego_group)
+    def embed(self, Sg: STEGO_GROUP, secret_digit: DIGIT) -> STEGO_GROUP:
         if options.verbose:
-            print(f"\x1b[1m[\x1b[93m++\x1b[0m\x1b[1m]\x1b[0m For stego_group number {digit_index:4d}          =         {stego_group} -> f = {current_digit:4d}\x1b[0m")
+            print(f"\x1b[1m[\x1b[93m++\x1b[0m\x1b[1m]\x1b[0m For stego group number {Sg.index:4d} list of pixels = = = = = = = = = = = = = = = = = = = = {Sg.pixels} -> f = {Sg.get_digit().value:4d}\x1b[0m")
 
-        if current_digit != secret_digit:
-            s = (secret_digit - current_digit) % self.base
+        new_Sg = Sg
+
+        if new_Sg.get_digit().value != secret_digit.value:
+            s = (secret_digit.value - new_Sg.get_digit().value) % self.base
             if s <= self.n:
                 pos = s - 1 
-                pixel_to_change = stego_group[pos]
+                pixel_to_change = new_Sg.pixels[pos]
                 if pixel_to_change == 255:
-                    stego_group[pos] -= 1
-                    stego_group = self.embed(digit_index, secret_digit, stego_group)
+                    new_Sg.pixels[pos] -= 1
+                    new_Sg = self.embed(new_Sg, secret_digit)
                 else:
-                    stego_group[pos] = pixel_to_change + 1
+                    new_Sg.pixels[pos] = pixel_to_change + 1
             elif s > self.n:
                 pos = self.base - s - 1
-                pixel_to_change = stego_group[pos]
+                pixel_to_change = new_Sg.pixels[pos]
                 if pixel_to_change == 0:
-                    stego_group[pos] += 1
-                    stego_group = self.embed(digit_index, secret_digit, stego_group)
+                    new_Sg.pixels[pos] += 1
+                    new_Sg = self.embed(new_Sg, secret_digit)
                 else:
-                    stego_group[pos] = pixel_to_change - 1
+                    new_Sg.pixels[pos] = pixel_to_change - 1
             if options.verbose:
-                print(f"\x1b[1m[\x1b[93m++\x1b[0m\x1b[1m]\x1b[0m    s = {s:6d} so digit {digit_index:4d} changed and now is {stego_group} -> f = {self.f(stego_group):4d}\x1b[0m")
+                print(f"\x1b[1m[\x1b[93m++\x1b[0m\x1b[1m]\x1b[0m    s = {s:6d} so digit {new_Sg.index:4d} changed and to embed secret digit {secret_digit.value:4d} now is equal to {new_Sg.pixels} -> f = {new_Sg.get_digit().value:4d}\x1b[0m")
         else:
             if options.verbose:
-                print(f"\x1b[1m[\x1b[93m++\x1b[0m\x1b[1m]\x1b[0m    s = 0 so digit {digit_index} do not change\x1b[0m")
+                print(f"\x1b[1m[\x1b[93m++\x1b[0m\x1b[1m]\x1b[0m    s = 0      so digit {new_Sg.index:4d} do not change\x1b[0m")
 
-        return stego_group
-
-    def hide_digit(self, secret_digit, Img, digit_index) -> None:
-        stego_group = Img.get_stego_group(digit_index,self.n)
-        stego_group = self.embed(digit_index, secret_digit, stego_group)
-        Img.set_stego_group(stego_group, digit_index, self.n)
+        return new_Sg
 
     # Hide each byte of data in image
-    def hide(self, Data, Img):
+    def hide(self, Secret: SECRET, Img: IMAGE) -> IMAGE:
         if options.debug or options.verbose:
-            print(f"\x1b[1m[\x1b[93m+\x1b[0m\x1b[1m]\x1b[0m Data to hide : {len(Data.bytes)} bytes and {len(Data.bits)} bits\x1b[0m")
+            print(f"\x1b[1m[\x1b[93m+\x1b[0m\x1b[1m]\x1b[0m Secret to hide : {len(Secret.bytes)} bytes and {len(Secret.bits)} bits\x1b[0m")
         if options.verbose:
-            print(f"\x1b[1m[\x1b[93m++\x1b[0m\x1b[1m]\x1b[0m Data bytes to hide is {Data.bytes}\x1b[0m")
-            print(f"\x1b[1m[\x1b[93m++\x1b[0m\x1b[1m]\x1b[0m Data bits to hide is {Data.bits}\x1b[0m")
+            print(f"\x1b[1m[\x1b[93m++\x1b[0m\x1b[1m]\x1b[0m Secret bytes to hide is {Secret.bytes}\x1b[0m")
+            print(f"\x1b[1m[\x1b[93m++\x1b[0m\x1b[1m]\x1b[0m Secret bits to hide is {Secret.bits}\x1b[0m")
             
-        required_digits = math.ceil(len(Data.bits) / self.bits_per_digit)
+        required_digits = math.ceil(len(Secret.bits) / self.bits_per_digit)
         if options.debug or options.verbose:
-            print(f"\x1b[1m[\x1b[93m+\x1b[0m\x1b[1m]\x1b[0m Required digits (stego_group) to hide Data : {required_digits}\x1b[0m")
+            print(f"\x1b[1m[\x1b[93m+\x1b[0m\x1b[1m]\x1b[0m Required digits (stego_group) to hide Secret : {required_digits}\x1b[0m")
 
         if Img.width * Img.height < required_digits * self.n:
             raise ValueError(f"\x1b[1;91m❌\x1b[0mImage too small : {Img.width * Img.height} pixels available, {required_digits * n} required !\x1b[0m")
 
-        digits = self.set_digits(Data.bits)
+        Secret_digits = Secret.get_digits(self.n)
         if options.verbose:
-            print(f"\x1b[1m[\x1b[93m++\x1b[0m\x1b[1m]\x1b[0m List of {len(digits)} digits {self.base}-ary to hide are {digits}\x1b[0m")
+            print(f"\x1b[1m[\x1b[93m++\x1b[0m\x1b[1m]\x1b[0m List of {len(Secret_digits)} digits {self.base}-ary to hide are : {[digit.value for digit in Secret_digits]}\x1b[0m")
 
-        digit_index = 0
-        while digit_index < len(digits) :
-            secret_digit = digits[digit_index]
-            self.hide_digit(secret_digit, Img, digit_index)
-            digit_index += 1
+        for index in range(len(Secret_digits)):
+            Sg = STEGO_GROUP(Img, index, self.n)
+            new_Sg = self.embed(Sg, Secret_digits[index])
+            Sg.set_pixels(new_Sg.pixels)
 
-        print(f"\x1b[1;92m✅\x1b[0m \x1b[96mData of {Data.length} bytes hidden with {digit_index} digits of base {self.base} and {len(Data.bits)} bits\x1b[0m")
+        print(f"\x1b[1;92m✅\x1b[0m \x1b[96mSecret of {Secret.length} bytes hidden with {len(Secret_digits)} digits of base {self.base} and {len(Secret.bits)} bits\x1b[0m")
         return Img
 
-    # Extract and calculate digits from IMAGE 
-    def get_digits(self, Img, data_length) -> list:
-        digits = []
-        digit_index = 0
-        while len(digits) * self.bits_per_digit < data_length * BYTE_LENGTH :
-            p = Img.get_stego_group(digit_index, self.n)
-            digit = self.f(p)
-            digits.append(digit)
+    def extract(self, Img: IMAGE, data_length: int) -> bytes:
+        Img_digits = Img.get_digits(self.n, data_length)
+
+        bits = []
+        for digit in Img_digits:
+            binary = digit.convert_to_bits()
+            bits.extend([int(b) for b in binary])
             if options.verbose:
-                print(f"\x1b[1m[\x1b[93m++\x1b[0m\x1b[1m]\x1b[0m For Stego group {digit_index} : {p = } and f(p) = {digit} \x1b[0m")
-            digit_index += 1
+                print(f"\x1b[1m[\x1b[93m++\x1b[0m\x1b[1m]\x1b[0m  Converting digit = {digit.value:4d} to bits = {binary}\x1b[0m")
+        #Keep the exact quantity of bits...
+        bits = bits[:data_length * BYTE_LENGTH]
+
         if options.debug or options.verbose:
-            print(f"\x1b[1m[\x1b[93m+\x1b[0m\x1b[1m]\x1b[0m Get {len(digits)} digits from image\x1b[0m")
-        return digits
+            print(f"\x1b[1m[\x1b[93m+\x1b[0m\x1b[1m]\x1b[0m Converted {len(bits)} bits from {len(Img_digits)} digits\x1b[0m")
 
-    #Convert bits to digits in a (2n + 1)-ary notational system
-    def set_digits(self, bits) -> list:
-        # Add padding With '0' if needed
-        remainder = len(bits) % self.bits_per_digit
-        if remainder != 0:
-            bits = bits + [0] * (self.bits_per_digit - remainder)
-
-        digits = []
-        for i in range(0, len(bits), self.bits_per_digit):
-            group = bits[i : i + self.bits_per_digit]
-            number = int(''.join(map(str, group)),2)
-            if options.verbose:
-                print(f"\x1b[1m[\x1b[93m++\x1b[0m\x1b[1m]\x1b[0m For group of bits {group}, digit is {number}\x1b[0m")
-            digits.append(number)
-        if options.debug or options.verbose:
-            print(f"\x1b[1m[\x1b[93m+\x1b[0m\x1b[1m]\x1b[0m Convert {len(digits)} digits from {len(bits)} bits\x1b[0m")
-        return digits
-
-    def extract(self, Img, data_length) -> bytes:
-        digits = self.get_digits(Img, data_length)
-
-        bits = self.convert_digits2bits(digits, data_length)
         if options.verbose:
-            print(f"\x1b[1m[\x1b[93m++\x1b[0m\x1b[1m]\x1b[0m numbers {self.base}-ary extracted : {digits}\x1b[0m")
+            print(f"\x1b[1m[\x1b[93m++\x1b[0m\x1b[1m]\x1b[0m numbers {self.base}-ary extracted : {[digit.value for digit in Img_digits]}\x1b[0m")
             print(f"\x1b[1m[\x1b[93m++\x1b[0m\x1b[1m]\x1b[0m Extracted Message in {len(bits)} bits\x1b[0m")
             print(f"\x1b[1m[\x1b[93m++\x1b[0m\x1b[1m]\x1b[0m bits of Secret = {bits}\x1b[0m")
-        Secret = DATA(bits)
+        Secret = SECRET(bits)
 
         if options.debug or options.verbose:
             print(f"\x1b[1m[\x1b[93m+\x1b[0m\x1b[1m]\x1b[0m Extracted {Secret.length // BYTE_LENGTH} bytes from image\x1b[0m")
         return Secret
 
 def parseArgs() -> dict:
-    parser = argparse.ArgumentParser(add_help=True, description="The EMD_Stegano script allows you to hide DATA in an image or read hidden DATA from an image with a Steganographic process called EMD (Exploiting Modification Direction)")
+    parser = argparse.ArgumentParser(add_help=True, description="The EMD_Stegano script allows you to hide SECRET in an image or read hidden SECRET from an image with a Steganographic process called EMD (Exploiting Modification Direction)")
     parser.add_argument("-v", "--debug", action="store_true", default=False, help="Debug mode.")
     parser.add_argument("-vv", "--verbose", action="store_true", default=False, help="Very Verbose mode.")
     
@@ -326,7 +361,7 @@ def header() -> None:
     print(r"""  ______ __  __ _____     _____ _                               
  |  ____|  \/  |  __ \   / ____| |                              
  | |__  | \  / | |  | | | (___ | |_ ___  __ _  __ _ _ __   ___  
- |  __| | |\/| | |  | |  \___ \| __/ _ \/ _` |/ _` | '_ \ / _ \           v1.2
+ |  __| | |\/| | |  | |  \___ \| __/ _ \/ _` |/ _` | '_ \ / _ \           v1.1
  | |____| |  | | |__| |  ____) | ||  __/ (_| | (_| | | | | (_) |
  |______|_|  |_|_____/  |_____/ \__\___|\__, |\__,_|_| |_|\___/           @totoiste
                                          __/ |                  
@@ -337,7 +372,7 @@ def header() -> None:
 if __name__ == '__main__':
     BYTE_LENGTH = 8
     SUFFIX_OUTPUT_FILE = '_EMD'
-    
+ 
     header()
     options = parseArgs()
 
@@ -348,7 +383,7 @@ if __name__ == '__main__':
                 nb_pixels = Img.get_nb_pixels()
                 if Img.mode != 'L':
                     print(f"\x1b[1;93m⚠\x1b[0m \x1b[96mImage not in grayscale -> will be converted\x1b[0m")
-                print(f"\x1b[1;92m✅\x1b[0m \x1b[96mYou can hide a total of {nb_pixels // BYTE_LENGTH} // n bytes with n > 2 in {options.input_image}\x1b[0m")
+                print(f"\x1b[1;92m✅\x1b[0m \x1b[96mYou can hide a total of {nb_pixels // BYTE_LENGTH} bytes in {options.input_image}\x1b[0m")
 
             case 'hide':
                 Steg = EMD(options.dimension)
@@ -358,9 +393,9 @@ if __name__ == '__main__':
                     
                 Data = ""
                 if options.input_data_text:
-                    Data = DATA(options.input_data_text)
+                    Data = SECRET(options.input_data_text)
                 elif options.input_data_file:
-                    Data = DATA(options.input_data_file)
+                    Data = SECRET(options.input_data_file)
                 
                 Img_steg = Steg.hide(Data, Img)
                 
@@ -388,8 +423,7 @@ if __name__ == '__main__':
 
             case 'search':
                 Img_steg = IMAGE(options.input_image)
-                #n_max = Img_steg.width - 1 #Should be different...
-                n_max = 20
+                n_max = Img_steg.width - 1 #Should be different...
                 for n in range(2,n_max):
                     nb_bytes_max = (Img_steg.get_nb_pixels() // BYTE_LENGTH // n)
                     if options.debug or options.verbose:
