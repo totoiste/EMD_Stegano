@@ -3,7 +3,7 @@
 # File name          : EMD_Stegano.py
 # Author             : totoiste (@T0to1st3)
 # Date created       : 13/07/2025
-# V2.0
+# V2.1
 
 from PIL import Image
 import argparse
@@ -142,8 +142,11 @@ Class SECRET
     - data can be a string, byte or array of bits
 """
 class SECRET:
-    def __init__(self, data) -> None:
+    def __init__(self, data, n) -> None:
         self.length = len(data)
+        self.n = n
+        self.base = 2 * self.n + 1
+        self.bits_per_digit = math.floor(math.log2(self.base))
 
         #Manage format inputs
         if isinstance(data, str): 
@@ -177,16 +180,13 @@ class SECRET:
 
     #Convert bits to digits in a (2n + 1)-ary notational system
     def get_digits(self, n: int) -> list:
-        base = 2 * n + 1
-        bits_per_digit = math.floor(math.log2(base))
-
         digits = []
-        for i in range(0, len(self.bits), bits_per_digit):
-            group = self.bits[i : i + bits_per_digit]
+        for i in range(0, len(self.bits), self.bits_per_digit):
+            group = self.bits[i : i + self.bits_per_digit]
 
-            # Manage the case : Secret bits number is not exactly the number of digits * bits_per_digit
-            if len(group) < bits_per_digit:
-                group.extend([0] * (bits_per_digit - len(group)))
+            # Manage the case : Secret bits number is not exactly the number of digits * self.bits_per_digit
+            if len(group) < self.bits_per_digit:
+                group.extend([0] * (self.bits_per_digit - len(group)))
 
             value = int(''.join(map(str, group)),2) 
             if options.verbose:
@@ -204,7 +204,6 @@ class SECRET:
                 substring_bytes = raw_bytes[i:i + length]
                 decoded_substring = substring_bytes.decode('utf-8', errors='ignore')
                 printable_count = sum(1 for char in decoded_substring if char.isprintable())
-                #print(f"{len(self.bytes) = } {i = } {decoded_substring = } and {printable_count = }")
                 if (printable_count / length) >= tolerance:
                     return (substring_bytes,i,b)
         return None
@@ -318,7 +317,7 @@ class EMD:
             print(f"\x1b[1m[\x1b[93m++\x1b[0m\x1b[1m]\x1b[0m numbers {self.base}-ary extracted : {[digit.value for digit in Img_digits]}\x1b[0m")
             print(f"\x1b[1m[\x1b[93m++\x1b[0m\x1b[1m]\x1b[0m Extracted Message in {len(bits)} bits\x1b[0m")
             print(f"\x1b[1m[\x1b[93m++\x1b[0m\x1b[1m]\x1b[0m bits of Secret = {bits}\x1b[0m")
-        Secret = SECRET(bits)
+        Secret = SECRET(bits, self.n)
 
         if options.debug or options.verbose:
             print(f"\x1b[1m[\x1b[93m+\x1b[0m\x1b[1m]\x1b[0m Extracted {Secret.length // BYTE_LENGTH} bytes from image\x1b[0m")
@@ -362,7 +361,7 @@ def header() -> None:
     print(r"""  ______ __  __ _____     _____ _                               
  |  ____|  \/  |  __ \   / ____| |                              
  | |__  | \  / | |  | | | (___ | |_ ___  __ _  __ _ _ __   ___  
- |  __| | |\/| | |  | |  \___ \| __/ _ \/ _` |/ _` | '_ \ / _ \           v1.1
+ |  __| | |\/| | |  | |  \___ \| __/ _ \/ _` |/ _` | '_ \ / _ \           v2.1
  | |____| |  | | |__| |  ____) | ||  __/ (_| | (_| | | | | (_) |
  |______|_|  |_|_____/  |_____/ \__\___|\__, |\__,_|_| |_|\___/           @totoiste
                                          __/ |                  
@@ -394,10 +393,10 @@ if __name__ == '__main__':
                     
                 Data = ""
                 if options.input_data_text:
-                    Data = SECRET(options.input_data_text)
+                    Data = SECRET(options.input_data_text, options.dimension)
                 elif options.input_data_file:
                     with open(options.input_data_file, 'rb') as f:
-                        Data = SECRET(f.read())
+                        Data = SECRET(f.read(), options.dimension)
                 
                 Img_steg = Steg.hide(Data, Img)
                 
